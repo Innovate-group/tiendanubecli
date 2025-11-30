@@ -5,7 +5,7 @@
   "type": "module",
   "main": "lib/core/app.js",
   "bin": {
-    "tiendanube": "./bin/cli.js"
+    "tiendanube": "bin/cli.js"
   },
   "scripts": {
     "start": "node lib/core/app.js watch",
@@ -51,7 +51,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Innovate-group/tiendanubecli.git"
+    "url": "git+https://github.com/Innovate-group/tiendanubecli.git"
   },
   "homepage": "https://github.com/Innovate-group/tiendanubecli#readme",
   "bugs": {
