@@ -20,7 +20,8 @@ A modern CLI tool for **Tienda Nube** and **Nuvemshop** theme developers. Automa
 - **🔄 Auto-Sync**: Real-time file monitoring with automatic FTP synchronization
 - **⚡ Interactive Setup**: Quick CLI-guided FTP configuration
 - **📥 Download/Upload**: Full theme download or upload with a single command
-- **✅ Config Validator**: Validate theme configuration files before deployment
+- **✅ Enhanced Config Validator**: Comprehensive Tienda Nube specific validation with critical tab indentation checks
+- **🔍 Smart Error Detection**: Duplicate name detection and cross-file validation with defaults.txt
 - **🔁 Smart Retry**: Automatic retry logic for reliable file transfers
 - **💻 Cross-Platform**: Works on Windows, macOS, and Linux
 
@@ -128,17 +129,25 @@ tiendanube download-file templates/product.tpl
 
 ### `tiendanube check`
 
-Validate theme configuration files (`.txt` files in `config/` folder).
+Validate theme configuration files (`.txt` and `.json` files in `config/` folder) with Tienda Nube specific requirements.
 
 ```bash
 tiendanube check
 ```
 
-Checks for:
+**Critical Validations:**
 
-- Valid JSON syntax
-- Required fields presence
-- Correct data types
+- **Tab Indentation**: Enforces Tienda Nube requirement for tabs only (no spaces)
+- **Duplicate Names**: Detects duplicate `name` fields across configuration files
+- **Cross-Reference**: Validates that every `name` field has a corresponding value in `defaults.txt`
+
+**Additional Checks:**
+
+- Valid JSON syntax for `.json` files
+- Tienda Nube specific file format validation (settings.txt, sections.txt, translations.txt)
+- Required language translations (es, pt, en, es_mx)
+- File size optimization warnings (>500KB for .txt, >100KB for .json)
+- Excessive nesting detection
 - Best practices compliance
 
 ### `tiendanube --help`
@@ -231,6 +240,15 @@ tiendanube check
 ```
 
 This will show specific errors with line and column numbers for easy debugging.
+
+**Common Error Types:**
+
+- **CRITICAL: Tab Indentation**: Use tabs only for indentation, never spaces (fundamental Tienda Nube requirement)
+- **Duplicate Name Fields**: Each `name` field must be unique across all configuration files
+- **Missing Defaults**: Every `name` field must have a corresponding value in `defaults.txt`
+- **JSON Syntax Errors**: Invalid JSON formatting in `.json` files
+- **Missing Translations**: Required languages missing in `translations.txt`
+- **File Structure**: Invalid Tienda Nube specific file formats
 
 ### Upload/Download Failures
 
