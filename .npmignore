@@ -1,0 +1,59 @@
+# Environment and local files
+.env
+.env.local
+.env.*.local
+
+# Theme folder (user's local development)
+theme/
+
+# Test files
+tests/
+*.test.js
+test-theme-temp/
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.travis.yml
+.circleci/
+
+# Documentation (keep README.md, exclude others)
+REFACTORING-SUMMARY.md
+CLAUDE.md
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (npm handles this automatically, but explicit is good)
+node_modules/

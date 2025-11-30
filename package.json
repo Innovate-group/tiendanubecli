@@ -1,0 +1,60 @@
+{
+  "name": "tiendanubecli",
+  "version": "1.0.0",
+  "description": "CLI tool for Tienda Nube / Nuvemshop theme development with FTP synchronization",
+  "type": "module",
+  "main": "lib/core/app.js",
+  "bin": {
+    "tiendanube": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node lib/core/app.js watch",
+    "download": "node lib/core/app.js download",
+    "download:file": "node lib/core/app.js download-file",
+    "push": "node lib/core/app.js push-all",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.3",
+    "chalk": "^5.6.2",
+    "chokidar": "^4.0.3",
+    "commander": "^14.0.2",
+    "dotenv": "^16.5.0",
+    "inquirer": "^13.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "tienda-nube",
+    "nuvemshop",
+    "theme-development",
+    "ftp-sync",
+    "ecommerce",
+    "cli",
+    "brazil",
+    "argentina",
+    "latam",
+    "theme"
+  ],
+  "author": "Innovate Group",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Innovate-group/tiendanubecli.git"
+  },
+  "homepage": "https://github.com/Innovate-group/tiendanubecli#readme",
+  "bugs": {
+    "url": "https://github.com/Innovate-group/tiendanubecli/issues"
+  }
+}
