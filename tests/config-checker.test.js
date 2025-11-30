@@ -38,7 +38,7 @@ describe("ConfigChecker", () => {
       expect(results.success).toBe(true); // No errors, just warnings
       expect(results.warnings).toHaveLength(1);
       expect(results.warnings[0].message).toContain(
-        "No configuration files found in config directory",
+        "No configuration files found in config directory"
       );
     });
   });
@@ -46,8 +46,14 @@ describe("ConfigChecker", () => {
   describe("Tienda Nube File Validation", () => {
     it("should validate valid Tienda Nube .txt file with tabs", async () => {
       const validTiendaNubeContent = `Settings\n\tname = test_setting\n\ttype = text\n\tlabel = Test Setting`;
-      await fs.writeFile(path.join(testConfigPath, "settings.txt"), validTiendaNubeContent);
-      await fs.writeFile(path.join(testConfigPath, "defaults.txt"), "test_setting = default_value");
+      await fs.writeFile(
+        path.join(testConfigPath, "settings.txt"),
+        validTiendaNubeContent
+      );
+      await fs.writeFile(
+        path.join(testConfigPath, "defaults.txt"),
+        "test_setting = default_value"
+      );
 
       const results = await checker.check(testThemePath);
 
@@ -57,14 +63,22 @@ describe("ConfigChecker", () => {
 
     it("should report CRITICAL error for spaces instead of tabs", async () => {
       const contentWithSpaces = `Settings\n  name = test_setting`; // Using spaces
-      await fs.writeFile(path.join(testConfigPath, "settings.txt"), contentWithSpaces);
-      await fs.writeFile(path.join(testConfigPath, "defaults.txt"), "test_setting = default_value");
+      await fs.writeFile(
+        path.join(testConfigPath, "settings.txt"),
+        contentWithSpaces
+      );
+      await fs.writeFile(
+        path.join(testConfigPath, "defaults.txt"),
+        "test_setting = default_value"
+      );
 
       const results = await checker.check(testThemePath);
 
       expect(results.success).toBe(false);
       expect(results.errors.length).toBeGreaterThanOrEqual(1);
-      const tabError = results.errors.find(e => e.message.includes("CRITICAL: Indentation must use tabs"));
+      const tabError = results.errors.find((e) =>
+        e.message.includes("CRITICAL: Indentation must use tabs")
+      );
       expect(tabError).toBeTruthy();
       expect(tabError.file).toBe("settings.txt");
       expect(tabError.line).toBe(2);
@@ -72,23 +86,38 @@ describe("ConfigChecker", () => {
 
     it("should detect duplicate name fields within file", async () => {
       const contentWithDuplicates = `Settings\n\tname = test_setting\n\ttype = text\n\nAnother Section\n\tname = test_setting`; // Duplicate name
-      await fs.writeFile(path.join(testConfigPath, "settings.txt"), contentWithDuplicates);
+      await fs.writeFile(
+        path.join(testConfigPath, "settings.txt"),
+        contentWithDuplicates
+      );
 
       const results = await checker.check(testThemePath);
 
       expect(results.success).toBe(false);
-      expect(results.errors.some(e => e.message.includes("Duplicate name field"))).toBe(true);
+      expect(
+        results.errors.some((e) => e.message.includes("Duplicate name field"))
+      ).toBe(true);
     });
 
     it("should detect names without defaults.txt correspondence", async () => {
       const settingsContent = `Settings\n\tname = missing_setting\n\ttype = text`;
-      await fs.writeFile(path.join(testConfigPath, "settings.txt"), settingsContent);
-      await fs.writeFile(path.join(testConfigPath, "defaults.txt"), "other_setting = value"); // Different name
+      await fs.writeFile(
+        path.join(testConfigPath, "settings.txt"),
+        settingsContent
+      );
+      await fs.writeFile(
+        path.join(testConfigPath, "defaults.txt"),
+        "other_setting = value"
+      ); // Different name
 
       const results = await checker.check(testThemePath);
 
       expect(results.success).toBe(false);
-      expect(results.errors.some(e => e.message.includes("has no corresponding value in defaults.txt"))).toBe(true);
+      expect(
+        results.errors.some((e) =>
+          e.message.includes("has no corresponding value in defaults.txt")
+        )
+      ).toBe(true);
     });
   });
 
@@ -127,15 +156,14 @@ describe("ConfigChecker", () => {
 
     it("should report line and column for JSON errors", async () => {
       const invalidJson = '{\n  "key": "value",\n  "bad": ]'; // Wrong bracket
-      await fs.writeFile(
-        path.join(testConfigPath, "data.json"),
-        invalidJson,
-      );
+      await fs.writeFile(path.join(testConfigPath, "data.json"), invalidJson);
 
       const results = await checker.check(testThemePath);
 
       expect(results.success).toBe(false);
-      const jsonError = results.errors.find(e => e.message.includes("Invalid JSON syntax"));
+      const jsonError = results.errors.find((e) =>
+        e.message.includes("Invalid JSON syntax")
+      );
       expect(jsonError).toHaveProperty("line");
       expect(jsonError).toHaveProperty("column");
     });
@@ -146,10 +174,10 @@ describe("ConfigChecker", () => {
       const validSettings = `Header Settings\n\tname = logo\n\ttype = image\n\tlabel = Store Logo\n\nColors\n\tname = primary_color\n\ttype = color\n\tlabel = Primary Color`;
       await fs.writeFile(
         path.join(testConfigPath, "settings.txt"),
-        validSettings,
+        validSettings
       );
       await fs.writeFile(
-        path.join(testConfigPath, "defaults.txt"), 
+        path.join(testConfigPath, "defaults.txt"),
         "logo = default_logo.png\nprimary_color = #000000"
       );
 
@@ -163,16 +191,20 @@ describe("ConfigChecker", () => {
       const settingsWithoutSections = `\tname = test\n\ttype = text`; // Only indented lines, no sections
       await fs.writeFile(
         path.join(testConfigPath, "settings.txt"),
-        settingsWithoutSections,
+        settingsWithoutSections
       );
       await fs.writeFile(
-        path.join(testConfigPath, "defaults.txt"), 
+        path.join(testConfigPath, "defaults.txt"),
         "test = default_value"
       );
 
       const results = await checker.check(testThemePath);
 
-      expect(results.warnings.some(w => w.message.includes("No main sections found"))).toBe(true);
+      expect(
+        results.warnings.some((w) =>
+          w.message.includes("No main sections found")
+        )
+      ).toBe(true);
     });
   });
 
@@ -184,7 +216,7 @@ describe("ConfigChecker", () => {
       };
       await fs.writeFile(
         path.join(testConfigPath, "data.json"),
-        JSON.stringify(validData),
+        JSON.stringify(validData)
       );
 
       const results = await checker.check(testThemePath);
@@ -196,7 +228,7 @@ describe("ConfigChecker", () => {
       const invalidData = ["array", "instead", "of", "object"];
       await fs.writeFile(
         path.join(testConfigPath, "data.json"),
-        JSON.stringify(invalidData),
+        JSON.stringify(invalidData)
       );
 
       const results = await checker.check(testThemePath);
@@ -215,34 +247,32 @@ describe("ConfigChecker", () => {
       }
       await fs.writeFile(
         path.join(testConfigPath, "data.json"),
-        JSON.stringify(largeData),
+        JSON.stringify(largeData)
       );
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.warnings.some((w) => w.message.includes("very large")),
+        results.warnings.some((w) => w.message.includes("very large"))
       ).toBe(true);
     });
 
     it("should warn about very large .txt files", async () => {
       // Create a large Tienda Nube file (definitely >500KB)
-      const baseContent = "This is a very long line of text that will be repeated many times to create a large file. ";
+      const baseContent =
+        "This is a very long line of text that will be repeated many times to create a large file. ";
       let largeContent = "Settings\n";
       // Repeat to create ~600KB+ file
       for (let i = 0; i < 6000; i++) {
         largeContent += `\tname = setting_${i}\n\ttype = text\n\tlabel = ${baseContent}Setting ${i}\n\tdescription = ${baseContent}Description for ${i}\n\n`;
       }
-      
-      await fs.writeFile(
-        path.join(testConfigPath, "large.txt"),
-        largeContent,
-      );
+
+      await fs.writeFile(path.join(testConfigPath, "large.txt"), largeContent);
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.warnings.some((w) => w.message.includes("very large")),
+        results.warnings.some((w) => w.message.includes("very large"))
       ).toBe(true);
     });
 
@@ -265,13 +295,13 @@ describe("ConfigChecker", () => {
       };
       await fs.writeFile(
         path.join(testConfigPath, "data.json"),
-        JSON.stringify(deepNested),
+        JSON.stringify(deepNested)
       );
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.warnings.some((w) => w.message.includes("deep nesting")),
+        results.warnings.some((w) => w.message.includes("deep nesting"))
       ).toBe(true);
     });
 
@@ -279,16 +309,16 @@ describe("ConfigChecker", () => {
       // Create content with exactly 6 tabs (>5 threshold)
       const sixTabs = "\t\t\t\t\t\t";
       const deepContent = `Settings\n${sixTabs}name = too_deep\n${sixTabs}type = text`;
+      await fs.writeFile(path.join(testConfigPath, "deep.txt"), deepContent);
       await fs.writeFile(
-        path.join(testConfigPath, "deep.txt"),
-        deepContent,
+        path.join(testConfigPath, "defaults.txt"),
+        "too_deep = value"
       );
-      await fs.writeFile(path.join(testConfigPath, "defaults.txt"), "too_deep = value");
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.warnings.some((w) => w.message.includes("Excessive nesting")),
+        results.warnings.some((w) => w.message.includes("Excessive nesting"))
       ).toBe(true);
     });
   });
@@ -298,25 +328,25 @@ describe("ConfigChecker", () => {
       // Create valid settings.txt
       await fs.writeFile(
         path.join(testConfigPath, "settings.txt"),
-        "Header\n\tname = logo\n\ttype = image",
+        "Header\n\tname = logo\n\ttype = image"
       );
-      
+
       // Create corresponding defaults.txt
       await fs.writeFile(
         path.join(testConfigPath, "defaults.txt"),
-        "logo = default.png",
+        "logo = default.png"
       );
 
       // Create valid data.json
       await fs.writeFile(
         path.join(testConfigPath, "data.json"),
-        JSON.stringify({ key: "value" }),
+        JSON.stringify({ key: "value" })
       );
 
       // Create invalid file with tab indentation error
       await fs.writeFile(
         path.join(testConfigPath, "invalid.txt"),
-        "Section\n  name = bad_indent", // Using spaces instead of tabs
+        "Section\n  name = bad_indent" // Using spaces instead of tabs
       );
 
       const results = await checker.check(testThemePath);
@@ -332,13 +362,15 @@ describe("ConfigChecker", () => {
       const emptySections = "\tname = no_section\n\ttype = text"; // No main sections
       await fs.writeFile(
         path.join(testConfigPath, "sections.txt"),
-        emptySections,
+        emptySections
       );
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.errors.some((e) => e.message.includes("At least one section is required")),
+        results.errors.some((e) =>
+          e.message.includes("At least one section is required")
+        )
       ).toBe(true);
     });
   });
@@ -348,16 +380,20 @@ describe("ConfigChecker", () => {
       const incompleteTranslations = `welcome\n\tes "Bienvenido"\n\tpt "Bem-vindo"`; // Missing en, es_mx
       await fs.writeFile(
         path.join(testConfigPath, "translations.txt"),
-        incompleteTranslations,
+        incompleteTranslations
       );
 
       const results = await checker.check(testThemePath);
 
       expect(
-        results.warnings.some((w) => w.message.includes("Missing translations for language: en")),
+        results.warnings.some((w) =>
+          w.message.includes("Missing translations for language: en")
+        )
       ).toBe(true);
       expect(
-        results.warnings.some((w) => w.message.includes("Missing translations for language: es_mx")),
+        results.warnings.some((w) =>
+          w.message.includes("Missing translations for language: es_mx")
+        )
       ).toBe(true);
     });
   });
