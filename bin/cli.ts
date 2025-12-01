@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// cli.ts - Main CLI entry point with strong typing
+
 import { Command } from "commander";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -9,7 +11,14 @@ import chalk from "chalk";
 // Get package.json for version
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
+
+interface PackageJson {
+  version: string;
+  name: string;
+  description?: string;
+}
+
+const packageJson: PackageJson = JSON.parse(
   readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
 );
 
@@ -41,7 +50,8 @@ program
     try {
       await runInteractiveSetup();
     } catch (error) {
-      console.error(chalk.red("\n❌ Setup failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Setup failed:", err.message));
       process.exit(1);
     }
   });
@@ -54,7 +64,8 @@ program
     try {
       await runWatch();
     } catch (error) {
-      console.error(chalk.red("\n❌ Watch mode failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Watch mode failed:", err.message));
       process.exit(1);
     }
   });
@@ -67,7 +78,8 @@ program
     try {
       await runDownload();
     } catch (error) {
-      console.error(chalk.red("\n❌ Download failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Download failed:", err.message));
       process.exit(1);
     }
   });
@@ -80,7 +92,8 @@ program
     try {
       await runPush();
     } catch (error) {
-      console.error(chalk.red("\n❌ Push failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Push failed:", err.message));
       process.exit(1);
     }
   });
@@ -89,11 +102,12 @@ program
 program
   .command("download-file <remotePath>")
   .description("Download a specific file from FTP server")
-  .action(async (remotePath) => {
+  .action(async (remotePath: string) => {
     try {
       await runDownloadFile(remotePath);
     } catch (error) {
-      console.error(chalk.red("\n❌ Download file failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Download file failed:", err.message));
       process.exit(1);
     }
   });
@@ -109,7 +123,8 @@ program
       const success = await runConfigCheck();
       process.exit(success ? 0 : 1);
     } catch (error) {
-      console.error(chalk.red("\n❌ Config check failed:", error.message));
+      const err = error as Error;
+      console.error(chalk.red("\n❌ Config check failed:", err.message));
       process.exit(1);
     }
   });

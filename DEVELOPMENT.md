@@ -9,6 +9,7 @@ This is a **refactored** Tienda Nube/Nuvemshop theme development tool that provi
 **Technology Stack:**
 
 - Node.js (ES Modules, requires >= 16.0.0)
+- TypeScript: Strong typing and enhanced developer experience
 - basic-ftp: FTP client for server operations
 - chokidar: File system watcher for change detection
 - dotenv: Environment configuration management
@@ -56,7 +57,15 @@ cp .env.example .env
 
 Edit `.env` with your test FTP server credentials.
 
-4. **Link CLI locally for testing**
+4. **Build TypeScript files**
+
+```bash
+npm run build
+```
+
+This compiles TypeScript files from `lib/` and `bin/` to JavaScript in the `dist/` folder.
+
+5. **Link CLI locally for testing**
 
 ```bash
 npm link
@@ -64,7 +73,7 @@ npm link
 
 Now you can use `tiendanube` command globally on your machine for testing.
 
-5. **Run tests to verify setup**
+6. **Run tests to verify setup**
 
 ```bash
 npm test
@@ -73,14 +82,38 @@ npm test
 ### Development Workflow
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`
-2. Make your changes
-3. Run tests: `npm test`
-4. Run linter: `npm run lint`
-5. Format code: `npm run format`
-6. Commit changes with meaningful messages
-7. Push and create a pull request
+2. Make your changes to TypeScript files (`.ts` extension)
+3. Build TypeScript: `npm run build`
+4. Run tests: `npm test`
+5. Run linter: `npm run lint`
+6. Format code: `npm run format`
+7. Commit changes with meaningful messages
+8. Push and create a pull request
+
+**TypeScript Development Tips:**
+
+- Use `npm run build:watch` to automatically rebuild on file changes
+- TypeScript will catch type errors during compilation
+- All source files are in TypeScript (`.ts`), compiled output goes to `dist/`
+- The `dist/` folder is gitignored and generated during build
 
 ## Development Commands
+
+### TypeScript Build Commands
+
+```bash
+# Build TypeScript to JavaScript (output in dist/)
+npm run build
+
+# Build and watch for changes (auto-rebuild)
+npm run build:watch
+
+# Development mode with tsx (no build needed)
+npm run dev
+
+# Prepare for npm publish (runs build automatically)
+npm run prepublishOnly
+```
 
 ### Using the CLI (Recommended)
 
@@ -207,13 +240,20 @@ npm run format
 
 ### Code Style Guidelines
 
-- **ES Modules**: Uses `import/export` syntax (not CommonJS)
+- **TypeScript**: All source code written in TypeScript with strict type checking
+- **ES Modules**: Uses `import/export` syntax with `.js` extensions in imports
 - **Indentation**: 2 spaces
 - **Quotes**: Double quotes for strings
 - **Semicolons**: Required
 - **Console logs**: Allowed (necessary for CLI feedback)
 - **Error handling**: Always use structured error classes
 - **Async/await**: Preferred over promises
+- **Type Safety**: Leverage TypeScript's type system:
+  - Always define interfaces for complex objects
+  - Use `readonly` for immutable properties
+  - Avoid `any` type - use `unknown` and type guards instead
+  - Use strict null checks (`strictNullChecks: true`)
+  - Add proper JSDoc comments for public APIs
 
 ## Architecture
 
@@ -231,49 +271,56 @@ The refactoring follows these architectural principles:
 
 ```
 ├── bin/
-│   └── cli.js                           # CLI entry point with Commander.js
+│   └── cli.ts                           # CLI entry point with Commander.js
 ├── lib/
 │   ├── cli/
-│   │   ├── interactive-setup.js         # Interactive FTP setup (tiendanube init)
-│   │   └── commands.js                  # CLI command wrappers
+│   │   ├── interactive-setup.ts         # Interactive FTP setup (tiendanube init)
+│   │   └── commands.ts                  # CLI command wrappers
 │   ├── core/
-│   │   ├── app.js                       # Main application orchestration
-│   │   ├── config.js                    # Configuration management
-│   │   └── file-watcher.js              # File system monitoring
+│   │   ├── config.ts                    # Configuration management with strong types
+│   │   └── file-watcher.ts              # File system monitoring
 │   ├── ftp/
-│   │   ├── connection-manager.js        # Connection pooling with idle timeout
-│   │   ├── service.js                   # High-level FTP operations with retry
-│   │   └── errors.js                    # FTP error classes
+│   │   ├── connection-manager.ts        # Connection pooling with idle timeout
+│   │   ├── service.ts                   # High-level FTP operations with retry
+│   │   └── errors.ts                    # FTP error classes with type hierarchy
 │   ├── validators/
-│   │   └── config-checker.js            # Configuration file validator
+│   │   └── config-checker.ts            # Configuration file validator
 │   └── utils/
-│       ├── logger.js                    # Structured logging
-│       └── path-utils.js                # Path conversion utilities
+│       ├── logger.ts                    # Structured logging
+│       └── path-utils.ts                # Path conversion utilities
+├── dist/                                # Compiled JavaScript (gitignored)
+│   ├── bin/                             # Compiled CLI entry
+│   └── lib/                             # Compiled library code
 └── tests/                               # Unit tests
 ```
 
+**Note**: Source code is in TypeScript (`.ts` files). The `npm run build` command compiles to JavaScript in the `dist/` folder.
+
 ### Application Modes
 
-**app.js** orchestrates four operational modes:
+**commands.ts** orchestrates four operational modes:
 
 1. **Watch Mode** (default): Monitors `theme/` and automatically syncs to FTP
 2. **Download Mode**: Downloads entire theme from FTP to local
 3. **Push-All Mode**: Uploads entire local theme to FTP server
 4. **Download-File Mode**: Downloads a specific file from FTP
 
+> **Note**: The `commands.ts` file consolidates the functionality previously split between `app.js` and `commands.js`, eliminating code duplication.
+
 ## Core Components
 
 ### CLI Infrastructure
 
-#### bin/cli.js - CLI Entry Point
+#### bin/cli.ts - CLI Entry Point
 
 - Uses Commander.js for command parsing
 - Defines all CLI commands (init, watch, download, push, download-file, check)
 - Handles --help and --version flags automatically
 - Provides user-friendly error messages
 - Exits with appropriate exit codes (0 for success, 1 for errors)
+- **TypeScript**: Strong typing for PackageJson interface and command handlers
 
-#### lib/cli/interactive-setup.js - Interactive Configuration
+#### lib/cli/interactive-setup.ts - Interactive Configuration
 
 Implements `tiendanube init` command:
 
@@ -282,8 +329,9 @@ Implements `tiendanube init` command:
 - Creates `.env` file with user input
 - Creates `theme/` folder if it doesn't exist
 - Displays next steps after successful setup
+- **TypeScript**: Typed interfaces for setup answers and FTP configuration
 
-#### lib/cli/commands.js - Command Wrappers
+#### lib/cli/commands.ts - Command Wrappers
 
 Exports functions for each CLI command:
 
@@ -293,11 +341,11 @@ Exports functions for each CLI command:
 - `runDownloadFile(remotePath)`: Download specific file
 
 All commands:
-- Wrap app.js functionality with CLI-friendly messages
 - Handle configuration validation
 - Ensure theme folder exists before operations
+- **TypeScript**: Full type safety with void return types and error handling
 
-#### lib/validators/config-checker.js - Configuration Validator
+#### lib/validators/config-checker.ts - Configuration Validator
 
 Implements `tiendanube check` command:
 
@@ -310,9 +358,9 @@ Implements `tiendanube check` command:
 
 ### Connection Management (Critical)
 
-#### lib/ftp/connection-manager.js
+#### lib/ftp/connection-manager.ts
 
-Implements connection pooling:
+Implements connection pooling with TypeScript:
 
 - **Maintains a single persistent connection** (reused across operations)
 - **Idle timeout**: Closes connection after 5 minutes of inactivity
@@ -343,9 +391,9 @@ client.close(); // Wasteful!
 
 ### FTP Service Layer
 
-#### lib/ftp/service.js
+#### lib/ftp/service.ts
 
-Provides high-level operations:
+Provides high-level operations with strong typing:
 
 - Wraps all FTP operations with retry logic
 - Classifies errors as retryable or fatal
@@ -373,9 +421,9 @@ Provides high-level operations:
 
 ### Error Handling
 
-#### lib/ftp/errors.js
+#### lib/ftp/errors.ts
 
-Defines custom error classes:
+Defines custom error classes with TypeScript type hierarchy:
 
 - `FtpError`: Base error class
 - `FtpConnectionError`: Network issues (retryable)
@@ -394,9 +442,9 @@ The `classifyFtpError(error, context)` function automatically categorizes errors
 
 ### File Watching
 
-#### lib/core/file-watcher.js
+#### lib/core/file-watcher.ts
 
-Monitors file system changes:
+Monitors file system changes with type-safe event handlers:
 
 - Uses chokidar for robust change detection
 - Debounces writes (300ms stability threshold)
@@ -412,9 +460,9 @@ Monitors file system changes:
 
 ### Path Utilities
 
-#### lib/utils/path-utils.js
+#### lib/utils/path-utils.ts
 
-Handles path conversions:
+Handles path conversions with TypeScript:
 
 - `getRelativePath(fullPath)`: Extract path relative to theme folder
 - `getRemotePath(localPath)`: Convert local → FTP path
@@ -430,9 +478,9 @@ Handles path conversions:
 
 ### Configuration
 
-#### lib/core/config.js
+#### lib/core/config.ts
 
-Centralizes all settings from .env:
+Centralizes all settings from .env with strong typing:
 
 ```javascript
 config.ftp;        // FTP connection settings
@@ -454,9 +502,9 @@ Use `validateConfig()` to ensure required variables are set.
 
 ### Logging
 
-#### lib/utils/logger.js
+#### lib/utils/logger.ts
 
-Provides structured logging:
+Provides structured logging with TypeScript:
 
 ```javascript
 const logger = new Logger("ComponentName");
@@ -534,14 +582,15 @@ To add new error classification:
 2. Update `classifyFtpError()` with detection pattern
 3. Set `isRetryable` property appropriately
 
-Example:
+Example (TypeScript):
 
-```javascript
+```typescript
 export class FtpQuotaExceededError extends FtpError {
-  constructor(message, context) {
-    super(message, context);
+  public override readonly isRetryable = false;
+
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "QUOTA_EXCEEDED", context);
     this.name = "FtpQuotaExceededError";
-    this.isRetryable = false;
   }
 }
 

@@ -3,21 +3,25 @@
   "version": "1.1.0",
   "description": "CLI tool for Tienda Nube / Nuvemshop theme development with FTP synchronization",
   "type": "module",
-  "main": "lib/core/app.js",
+  "main": "dist/lib/cli/commands.js",
   "bin": {
-    "tiendanube": "bin/cli.js"
+    "tiendanube": "dist/bin/cli.js"
   },
   "scripts": {
-    "start": "node lib/core/app.js watch",
-    "download": "node lib/core/app.js download",
-    "download:file": "node lib/core/app.js download-file",
-    "push": "node lib/core/app.js push-all",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "dev": "tsx bin/cli.ts",
+    "start": "npm run build && node dist/lib/cli/commands.js watch",
+    "download": "npm run build && node dist/lib/cli/commands.js download",
+    "download:file": "npm run build && node dist/lib/cli/commands.js download-file",
+    "push": "npm run build && node dist/lib/cli/commands.js push-all",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix .",
-    "format": "prettier --write ."
+    "lint": "eslint . --ext .ts,.js",
+    "lint:fix": "eslint --fix . --ext .ts,.js",
+    "format": "prettier --write .",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "basic-ftp": "^5.0.3",
@@ -28,9 +32,15 @@
     "inquirer": "^13.0.1"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.1",
     "eslint": "^8.55.0",
     "jest": "^29.7.0",
-    "prettier": "^3.1.0"
+    "prettier": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=16.0.0"

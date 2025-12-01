@@ -1,17 +1,28 @@
-// ftp-service.js - High-level FTP operations with retry logic
+// service.ts - High-level FTP operations with retry logic and strong typing
 
-import fs from "fs";
+import { promises as fs } from "fs";
+import fsSync from "fs";
 import path from "path";
+import { Client, FileInfo } from "basic-ftp";
 import { ftpConnectionManager } from "./connection-manager.js";
 import { Logger } from "../utils/logger.js";
-import { classifyFtpError, FtpError } from "./errors.js";
+import { classifyFtpError, FtpError, ErrorContext } from "./errors.js";
 import { config } from "../core/config.js";
 
 /**
- * High-level FTP service that provides business logic for FTP operations
- * Uses connection pooling and implements retry logic for transient failures
+ * Type for FTP operation functions
+ */
+type FtpOperation<T> = (client: Client) => Promise<T>;
+
+/**
+ * High-level FTP service that provides business logic for FTP operations.
+ * Uses connection pooling and implements retry logic for transient failures.
+ * Now with async file system operations for better performance.
  */
 export class FtpService {
+  private readonly logger: Logger;
+  private readonly connectionManager: typeof ftpConnectionManager;
+
   constructor() {
     this.logger = new Logger("FtpService");
     this.connectionManager = ftpConnectionManager;
@@ -19,15 +30,20 @@ export class FtpService {
 
   /**
    * Upload a file to the FTP server
-   * @param {string} localPath - Local file path
-   * @param {string} remotePath - Remote FTP path
-   * @returns {Promise<boolean>} Success status
+   * @param localPath - Local file path
+   * @param remotePath - Remote FTP path
+   * @returns Success status
+   * @throws {FtpError} If upload fails
    */
-  async uploadFile(localPath, remotePath) {
-    if (!fs.existsSync(localPath)) {
+  public async uploadFile(
+    localPath: string,
+    remotePath: string,
+  ): Promise<boolean> {
+    // Check if file exists using sync method (fast check)
+    if (!fsSync.existsSync(localPath)) {
       throw new FtpError(
         `Local file does not exist: ${localPath}`,
-        "LOCAL_FILE_NOT_FOUND",
+        "FILE_NOT_FOUND",
       );
     }
 
@@ -48,10 +64,11 @@ export class FtpService {
 
   /**
    * Delete a file from the FTP server
-   * @param {string} remotePath - Remote FTP path
-   * @returns {Promise<boolean>} Success status
+   * @param remotePath - Remote FTP path
+   * @returns Success status
+   * @throws {FtpError} If deletion fails
    */
-  async deleteFile(remotePath) {
+  public async deleteFile(remotePath: string): Promise<boolean> {
     await this.executeOperation(
       async (client) => {
         await client.remove(remotePath);
@@ -67,10 +84,11 @@ export class FtpService {
 
   /**
    * Create a directory on the FTP server
-   * @param {string} remotePath - Remote directory path
-   * @returns {Promise<boolean>} Success status
+   * @param remotePath - Remote directory path
+   * @returns Success status
+   * @throws {FtpError} If creation fails
    */
-  async createDirectory(remotePath) {
+  public async createDirectory(remotePath: string): Promise<boolean> {
     await this.executeOperation(
       async (client) => {
         await client.ensureDir(remotePath);
@@ -86,10 +104,11 @@ export class FtpService {
 
   /**
    * Remove a directory from the FTP server
-   * @param {string} remotePath - Remote directory path
-   * @returns {Promise<boolean>} Success status
+   * @param remotePath - Remote directory path
+   * @returns Success status
+   * @throws {FtpError} If removal fails
    */
-  async removeDirectory(remotePath) {
+  public async removeDirectory(remotePath: string): Promise<boolean> {
     await this.executeOperation(
       async (client) => {
         await client.removeDir(remotePath);
@@ -105,17 +124,21 @@ export class FtpService {
 
   /**
    * Download a file from the FTP server
-   * @param {string} remoteFilePath - Remote file path
-   * @param {string} localFilePath - Local destination path
-   * @returns {Promise<boolean>} Success status
+   * @param remoteFilePath - Remote file path
+   * @param localFilePath - Local destination path
+   * @returns Success status
+   * @throws {FtpError} If download fails
    */
-  async downloadFile(remoteFilePath, localFilePath) {
+  public async downloadFile(
+    remoteFilePath: string,
+    localFilePath: string,
+  ): Promise<boolean> {
     await this.executeOperation(
       async (client) => {
         // Create local directory if needed
         const localDir = path.dirname(localFilePath);
-        if (!fs.existsSync(localDir)) {
-          fs.mkdirSync(localDir, { recursive: true });
+        if (!fsSync.existsSync(localDir)) {
+          await fs.mkdir(localDir, { recursive: true });
           this.logger.info(`Local directory created: ${localDir}`);
         }
 
@@ -134,11 +157,12 @@ export class FtpService {
 
   /**
    * List contents of a directory on the FTP server
-   * @param {string} remotePath - Remote directory path
-   * @returns {Promise<Array>} Array of file/directory objects
+   * @param remotePath - Remote directory path
+   * @returns Array of file/directory objects
+   * @throws {FtpError} If listing fails
    */
-  async listDirectory(remotePath) {
-    const result = await this.executeOperation(
+  public async listDirectory(remotePath: string): Promise<FileInfo[]> {
+    const result = await this.executeOperation<FileInfo[]>(
       async (client) => {
         const list = await client.list(remotePath);
         return list;
@@ -152,11 +176,16 @@ export class FtpService {
 
   /**
    * Download all files recursively from a remote directory
-   * @param {string} remotePath - Remote directory path
-   * @param {string} localPath - Local destination path
-   * @param {string} themeFolderPath - Theme folder base path for logging
+   * @param remotePath - Remote directory path
+   * @param localPath - Local destination path
+   * @param themeFolderPath - Theme folder base path for logging
+   * @throws {FtpError} If download fails
    */
-  async downloadDirectory(remotePath, localPath, themeFolderPath) {
+  public async downloadDirectory(
+    remotePath: string,
+    localPath: string,
+    themeFolderPath: string,
+  ): Promise<void> {
     this.logger.info(`Exploring directory: ${remotePath}`);
 
     const client = await this.connectionManager.getConnection();
@@ -169,22 +198,21 @@ export class FtpService {
         return;
       }
 
-      this.logger.success(
-        `Found ${list.length} items in ${remotePath}`,
-      );
+      this.logger.success(`Found ${list.length} items in ${remotePath}`);
 
       for (const item of list) {
         const remoteItemPath = path.posix.join(remotePath, item.name);
         const localItemPath = path.join(localPath, item.name);
 
-        const isDirectory =
-          item.type === "d" || item.type === "2" || item.type === 2;
+        // FileType can be number (1=file, 2=directory) or string from FTP response
+        const typeStr = String(item.type);
+        const isDirectory = typeStr === "d" || typeStr === "2" || item.type === 2;
 
         if (isDirectory) {
           this.logger.info(`📂 Processing directory: ${item.name}`);
 
-          if (!fs.existsSync(localItemPath)) {
-            fs.mkdirSync(localItemPath, { recursive: true });
+          if (!fsSync.existsSync(localItemPath)) {
+            await fs.mkdir(localItemPath, { recursive: true });
             this.logger.info(
               `Local directory created: ${path.relative(themeFolderPath, localItemPath)}`,
             );
@@ -195,7 +223,7 @@ export class FtpService {
             localItemPath,
             themeFolderPath,
           );
-        } else if (item.type === "-" || item.type === "1" || item.type === 1) {
+        } else if (typeStr === "-" || typeStr === "1" || item.type === 1) {
           try {
             this.logger.info(`⏳ Downloading: ${remoteItemPath}`);
             await client.downloadTo(localItemPath, remoteItemPath);
@@ -203,15 +231,14 @@ export class FtpService {
               `File downloaded: ${path.relative(themeFolderPath, localItemPath)}`,
             );
           } catch (err) {
+            const error = err as Error;
             this.logger.error(
               `Error downloading ${remoteItemPath}:`,
-              err.message,
+              error.message,
             );
           }
         } else {
-          this.logger.warn(
-            `Unknown item type: ${item.type} (${item.name})`,
-          );
+          this.logger.warn(`Unknown item type: ${item.type} (${item.name})`);
         }
       }
     } catch (err) {
@@ -226,11 +253,15 @@ export class FtpService {
 
   /**
    * Download all contents from FTP server
-   * @param {string} remoteBasePath - Remote base path
-   * @param {string} localBasePath - Local base path
-   * @returns {Promise<boolean>} Success status
+   * @param remoteBasePath - Remote base path
+   * @param localBasePath - Local base path
+   * @returns Success status
+   * @throws {FtpError} If download fails
    */
-  async downloadAll(remoteBasePath, localBasePath) {
+  public async downloadAll(
+    remoteBasePath: string,
+    localBasePath: string,
+  ): Promise<boolean> {
     this.logger.info("\n📥 Starting complete FTP download...");
     this.logger.info(
       `🔸 Source: ${config.ftp.host}:${config.ftp.port}${remoteBasePath}`,
@@ -239,17 +270,15 @@ export class FtpService {
 
     try {
       // Create local directory if needed
-      if (!fs.existsSync(localBasePath)) {
-        fs.mkdirSync(localBasePath, { recursive: true });
+      if (!fsSync.existsSync(localBasePath)) {
+        await fs.mkdir(localBasePath, { recursive: true });
         this.logger.info(`Local directory created: ${localBasePath}`);
       }
 
       // Verify access to remote directory
       const client = await this.connectionManager.getConnection();
       const testList = await client.list(remoteBasePath);
-      this.logger.success(
-        `Access confirmed. ${testList.length} items found.`,
-      );
+      this.logger.success(`Access confirmed. ${testList.length} items found.`);
 
       // Download recursively
       await this.downloadDirectory(
@@ -270,15 +299,19 @@ export class FtpService {
 
   /**
    * Execute an FTP operation with retry logic
-   * @param {Function} operation - Operation to execute (receives client as parameter)
-   * @param {string} operationName - Name for logging
-   * @param {Object} context - Additional context (e.g., filePath)
-   * @returns {Promise<any>} Operation result
+   * @param operation - Operation to execute (receives client as parameter)
+   * @param operationName - Name for logging
+   * @param context - Additional context (e.g., filePath)
+   * @returns Operation result
    * @throws {FtpError} If operation fails after all retries
    */
-  async executeOperation(operation, operationName, context = {}) {
+  private async executeOperation<T>(
+    operation: FtpOperation<T>,
+    operationName: string,
+    context: ErrorContext = {},
+  ): Promise<T> {
     const maxRetries = config.connection.maxRetries;
-    let lastError;
+    let lastError: FtpError | undefined;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -300,7 +333,7 @@ export class FtpService {
         }
 
         // Invalidate connection for retryable errors
-        this.connectionManager.client = null;
+        this.connectionManager.invalidateConnection();
 
         // Exponential backoff
         const delay = Math.min(
@@ -312,29 +345,40 @@ export class FtpService {
       }
     }
 
+    if (!lastError) {
+      throw new FtpError(
+        `Operation ${operationName} failed without error`,
+        "UNKNOWN_ERROR",
+      );
+    }
+
     throw lastError;
   }
 
   /**
-   * Upload a directory recursively to the FTP server
-   * @param {string} localPath - Local directory path
-   * @param {string} remotePath - Remote FTP path
-   * @param {string} themeFolderPath - Theme folder base path for logging
+   * Upload a directory recursively to the FTP server (ASYNC version for performance)
+   * @param localPath - Local directory path
+   * @param remotePath - Remote FTP path
+   * @param themeFolderPath - Theme folder base path for logging
+   * @throws {FtpError} If upload fails
    */
-  async uploadDirectory(localPath, remotePath, themeFolderPath) {
+  public async uploadDirectory(
+    localPath: string,
+    remotePath: string,
+    themeFolderPath: string,
+  ): Promise<void> {
     this.logger.info(`📁 Exploring local directory: ${localPath}`);
 
     try {
-      const entries = fs.readdirSync(localPath, { withFileTypes: true });
+      // ✨ PERFORMANCE FIX: Use async fs.readdir instead of sync fs.readdirSync
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
 
       if (entries.length === 0) {
         this.logger.warn(`No files found in: ${localPath}`);
         return;
       }
 
-      this.logger.success(
-        `Found ${entries.length} items in ${localPath}`,
-      );
+      this.logger.success(`Found ${entries.length} items in ${localPath}`);
 
       for (const entry of entries) {
         const localItemPath = path.join(localPath, entry.name);
@@ -357,9 +401,10 @@ export class FtpService {
             this.logger.info(`⏳ Uploading: ${remoteItemPath}`);
             await this.uploadFile(localItemPath, remoteItemPath);
           } catch (err) {
+            const error = err as Error;
             this.logger.error(
               `Error uploading ${path.relative(themeFolderPath, localItemPath)}:`,
-              err.message,
+              error.message,
             );
           }
         } else {
@@ -377,12 +422,16 @@ export class FtpService {
   }
 
   /**
-   * Upload all local contents to FTP server (push all)
-   * @param {string} localBasePath - Local base path
-   * @param {string} remoteBasePath - Remote base path
-   * @returns {Promise<boolean>} Success status
+   * Upload all local contents to FTP server (push all) with async file operations
+   * @param localBasePath - Local base path
+   * @param remoteBasePath - Remote base path
+   * @returns Success status
+   * @throws {FtpError} If upload fails
    */
-  async uploadAll(localBasePath, remoteBasePath) {
+  public async uploadAll(
+    localBasePath: string,
+    remoteBasePath: string,
+  ): Promise<boolean> {
     this.logger.info("\n📤 Starting complete FTP upload...");
     this.logger.info(`🔸 Source: ${localBasePath}`);
     this.logger.info(
@@ -391,14 +440,15 @@ export class FtpService {
 
     try {
       // Verify local directory exists
-      if (!fs.existsSync(localBasePath)) {
+      if (!fsSync.existsSync(localBasePath)) {
         throw new FtpError(
           `Local directory does not exist: ${localBasePath}`,
-          "LOCAL_DIR_NOT_FOUND",
+          "FILE_NOT_FOUND",
         );
       }
 
-      const entries = fs.readdirSync(localBasePath);
+      // ✨ PERFORMANCE FIX: Use async fs.readdir instead of sync fs.readdirSync
+      const entries = await fs.readdir(localBasePath);
       this.logger.success(
         `Local directory verified. ${entries.length} items found.`,
       );
@@ -422,9 +472,19 @@ export class FtpService {
   }
 
   /**
+   * Test FTP connection (useful for validation before operations)
+   * @returns Success status
+   * @throws {FtpError} If connection fails
+   */
+  public async testConnection(): Promise<boolean> {
+    await this.connectionManager.getConnection();
+    return true;
+  }
+
+  /**
    * Shutdown the service and close connections
    */
-  async shutdown() {
+  public async shutdown(): Promise<void> {
     await this.connectionManager.shutdown();
   }
 }

@@ -1,15 +1,49 @@
-// ftp-errors.js - Custom error classes for FTP operations
+// errors.ts - Custom error classes for FTP operations with strong typing
 
 /**
- * Base FTP error class
+ * Error codes for FTP operations
+ */
+export type FtpErrorCode =
+  | "CONNECTION_ERROR"
+  | "AUTH_ERROR"
+  | "FILE_NOT_FOUND"
+  | "PERMISSION_ERROR"
+  | "TIMEOUT_ERROR"
+  | "UNKNOWN_ERROR";
+
+/**
+ * Context information for error classification
+ */
+export interface ErrorContext {
+  filePath?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Base FTP error class with strong typing
  */
 export class FtpError extends Error {
-  constructor(message, code, originalError = null) {
+  public readonly code: FtpErrorCode;
+  public readonly originalError: Error | null;
+  public readonly timestamp: string;
+  public readonly isRetryable: boolean;
+
+  constructor(
+    message: string,
+    code: FtpErrorCode,
+    originalError: Error | null = null,
+  ) {
     super(message);
     this.name = "FtpError";
     this.code = code;
     this.originalError = originalError;
     this.timestamp = new Date().toISOString();
+    this.isRetryable = false;
+
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 }
 
@@ -17,10 +51,11 @@ export class FtpError extends Error {
  * Connection-related errors (retryable)
  */
 export class FtpConnectionError extends FtpError {
-  constructor(message, originalError) {
+  public override readonly isRetryable = true;
+
+  constructor(message: string, originalError: Error | null) {
     super(message, "CONNECTION_ERROR", originalError);
     this.name = "FtpConnectionError";
-    this.isRetryable = true;
   }
 }
 
@@ -28,10 +63,11 @@ export class FtpConnectionError extends FtpError {
  * Authentication errors (not retryable)
  */
 export class FtpAuthenticationError extends FtpError {
-  constructor(message, originalError) {
+  public override readonly isRetryable = false;
+
+  constructor(message: string, originalError: Error | null) {
     super(message, "AUTH_ERROR", originalError);
     this.name = "FtpAuthenticationError";
-    this.isRetryable = false;
   }
 }
 
@@ -39,11 +75,17 @@ export class FtpAuthenticationError extends FtpError {
  * File not found errors (not retryable)
  */
 export class FtpFileNotFoundError extends FtpError {
-  constructor(message, filePath, originalError) {
+  public override readonly isRetryable = false;
+  public readonly filePath: string | undefined;
+
+  constructor(
+    message: string,
+    filePath: string | undefined,
+    originalError: Error | null,
+  ) {
     super(message, "FILE_NOT_FOUND", originalError);
     this.name = "FtpFileNotFoundError";
     this.filePath = filePath;
-    this.isRetryable = false;
   }
 }
 
@@ -51,11 +93,17 @@ export class FtpFileNotFoundError extends FtpError {
  * Permission denied errors (not retryable)
  */
 export class FtpPermissionError extends FtpError {
-  constructor(message, filePath, originalError) {
+  public override readonly isRetryable = false;
+  public readonly filePath: string | undefined;
+
+  constructor(
+    message: string,
+    filePath: string | undefined,
+    originalError: Error | null,
+  ) {
     super(message, "PERMISSION_ERROR", originalError);
     this.name = "FtpPermissionError";
     this.filePath = filePath;
-    this.isRetryable = false;
   }
 }
 
@@ -63,20 +111,50 @@ export class FtpPermissionError extends FtpError {
  * Timeout errors (retryable)
  */
 export class FtpTimeoutError extends FtpError {
-  constructor(message, originalError) {
+  public override readonly isRetryable = true;
+
+  constructor(message: string, originalError: Error | null) {
     super(message, "TIMEOUT_ERROR", originalError);
     this.name = "FtpTimeoutError";
-    this.isRetryable = true;
   }
 }
 
 /**
- * Classify generic errors into specific FTP error types
- * @param {Error} error - The original error
- * @param {Object} context - Additional context (e.g., filePath)
- * @returns {FtpError} Classified error
+ * Type guard to check if an error is an FtpError
  */
-export function classifyFtpError(error, context = {}) {
+export function isFtpError(error: unknown): error is FtpError {
+  return error instanceof FtpError;
+}
+
+/**
+ * Type guard to check if an error is retryable
+ */
+export function isRetryableError(error: unknown): boolean {
+  if (isFtpError(error)) {
+    return error.isRetryable;
+  }
+  return false;
+}
+
+/**
+ * Classify generic errors into specific FTP error types
+ * @param error - The original error
+ * @param context - Additional context (e.g., filePath)
+ * @returns Classified FTP error
+ */
+export function classifyFtpError(
+  error: Error | unknown,
+  context: ErrorContext = {},
+): FtpError {
+  // Handle non-Error objects
+  if (!(error instanceof Error)) {
+    return new FtpError(
+      `Unknown error: ${String(error)}`,
+      "UNKNOWN_ERROR",
+      null,
+    );
+  }
+
   const message = error.message?.toLowerCase() || "";
 
   // Connection errors
@@ -132,10 +210,7 @@ export function classifyFtpError(error, context = {}) {
 
   // Timeout errors
   if (message.includes("timeout") || message.includes("timed out")) {
-    return new FtpTimeoutError(
-      `Timeout: ${error.message}`,
-      error,
-    );
+    return new FtpTimeoutError(`Timeout: ${error.message}`, error);
   }
 
   // Generic FTP error
