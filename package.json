@@ -7,6 +7,12 @@
   "bin": {
     "tiendanube": "dist/bin/cli.js"
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
