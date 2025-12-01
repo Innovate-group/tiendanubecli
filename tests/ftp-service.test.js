@@ -2,8 +2,8 @@
 
 import { jest } from "@jest/globals";
 import fs from "fs";
-import { FtpService } from "../lib/ftp/service.js";
-import { FtpError } from "../lib/ftp/errors.js";
+import { FtpService } from "../dist/lib/ftp/service.js";
+import { FtpError } from "../dist/lib/ftp/errors.js";
 
 describe("FtpService", () => {
   let ftpService;
@@ -13,6 +13,7 @@ describe("FtpService", () => {
     mockConnectionManager = {
       getConnection: jest.fn(),
       shutdown: jest.fn(),
+      invalidateConnection: jest.fn(),
       client: null,
     };
 

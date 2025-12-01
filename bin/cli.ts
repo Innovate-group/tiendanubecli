@@ -18,8 +18,11 @@ interface PackageJson {
   description?: string;
 }
 
+// When compiled: dist/bin/cli.js needs ../../package.json
+// When in dev: bin/cli.ts needs ../package.json
+// Since we run from dist/ in production, we need ../.. from dist/bin/
 const packageJson: PackageJson = JSON.parse(
-  readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
+  readFileSync(join(__dirname, "..", "..", "package.json"), "utf-8"),
 );
 
 // Import CLI modules
