@@ -1,6 +1,6 @@
 // tests/path-utils.test.js - Tests for path utilities
 
-import { PathUtils } from "../lib/utils/path-utils.js";
+import { PathUtils } from "../dist/lib/utils/path-utils.js";
 import path from "path";
 
 describe("PathUtils", () => {

@@ -291,5 +291,6 @@ MIT © [Innovate Group](https://github.com/Innovate-group)
 
 - [npm package](https://www.npmjs.com/package/tiendanubecli)
 - [GitHub repository](https://github.com/Innovate-group/tiendanubecli)
+- [📋 Roadmap & Future Features](ROADMAP.md)
 - [Report issues](https://github.com/Innovate-group/tiendanubecli/issues)
 - [Tienda Nube Documentation](https://dev.tiendanube.com/)

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-import { ConfigChecker } from "../lib/validators/config-checker.js";
+import { ConfigChecker } from "../dist/lib/validators/config-checker.js";
 import fs from "fs/promises";
 import path from "path";
 

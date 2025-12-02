@@ -1,6 +1,53 @@
-import fs from "fs/promises";
+// config-checker.ts - Validates Tienda Nube / Nuvemshop theme configuration files with strong typing
+
+import { promises as fs } from "fs";
 import path from "path";
 import { Logger } from "../utils/logger.js";
+
+/**
+ * Validation error or warning severity
+ */
+type Severity = "error" | "warning";
+
+/**
+ * Validation issue structure
+ */
+export interface ValidationIssue {
+  file: string;
+  line?: number;
+  column?: number;
+  message: string;
+  severity: Severity;
+}
+
+/**
+ * Location of a name field in configuration
+ */
+interface NameLocation {
+  file: string;
+  line: number;
+}
+
+/**
+ * Default value entry from defaults.txt
+ */
+interface DefaultValue {
+  value: string;
+  line: number;
+}
+
+/**
+ * Validation results summary
+ */
+export interface ValidationResults {
+  success: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  summary: {
+    totalErrors: number;
+    totalWarnings: number;
+  };
+}
 
 /**
  * ConfigChecker - Validates Tienda Nube / Nuvemshop theme configuration files
@@ -15,22 +62,26 @@ import { Logger } from "../utils/logger.js";
  * - Best practices compliance
  */
 export class ConfigChecker {
+  private readonly logger: Logger;
+  private errors: ValidationIssue[] = [];
+  private warnings: ValidationIssue[] = [];
+  private allNames: Map<string, NameLocation> = new Map(); // Track all 'name' fields across files
+  private defaultValues: Map<string, DefaultValue> = new Map(); // Track values from defaults.txt
+
   constructor() {
     this.logger = new Logger("ConfigChecker");
-    this.errors = [];
-    this.warnings = [];
-    this.allNames = new Map(); // Track all 'name' fields across files
-    this.defaultValues = new Map(); // Track values from defaults.txt
   }
 
   /**
    * Run all configuration checks
-   * @param {string} themePath - Path to theme directory (default: './theme')
-   * @returns {Promise<Object>} - Check results with errors and warnings
+   * @param themePath - Path to theme directory (default: './theme')
+   * @returns Check results with errors and warnings
    */
-  async check(themePath = "./theme") {
+  public async check(themePath: string = "./theme"): Promise<ValidationResults> {
     this.errors = [];
     this.warnings = [];
+    this.allNames = new Map();
+    this.defaultValues = new Map();
 
     const configPath = path.join(themePath, "config");
 
@@ -47,16 +98,17 @@ export class ConfigChecker {
     }
 
     // Find all config files (.txt and .json)
-    let files;
+    let files: string[];
     try {
       const allFiles = await fs.readdir(configPath);
       files = allFiles.filter(
-        (file) => file.endsWith(".txt") || file.endsWith(".json")
+        (file) => file.endsWith(".txt") || file.endsWith(".json"),
       );
     } catch (error) {
+      const err = error as Error;
       this.errors.push({
         file: "config/",
-        message: "Cannot read config directory: " + error.message,
+        message: "Cannot read config directory: " + err.message,
         severity: "error",
       });
       return this.getResults();
@@ -92,18 +144,19 @@ export class ConfigChecker {
 
   /**
    * Check a single configuration file
-   * @param {string} filePath - Full path to the file
-   * @param {string} fileName - Name of the file
+   * @param filePath - Full path to the file
+   * @param fileName - Name of the file
    */
-  async checkFile(filePath, fileName) {
-    let content;
+  private async checkFile(filePath: string, fileName: string): Promise<void> {
+    let content: string;
 
     try {
       content = await fs.readFile(filePath, "utf-8");
     } catch (error) {
+      const err = error as Error;
       this.errors.push({
         file: fileName,
-        message: "Cannot read file: " + error.message,
+        message: "Cannot read file: " + err.message,
         severity: "error",
       });
       return;
@@ -129,9 +182,9 @@ export class ConfigChecker {
 
   /**
    * Load default values from defaults.txt
-   * @param {string} filePath - Path to defaults.txt
+   * @param filePath - Path to defaults.txt
    */
-  async loadDefaultValues(filePath) {
+  private async loadDefaultValues(filePath: string): Promise<void> {
     try {
       const content = await fs.readFile(filePath, "utf-8");
       const lines = content.split("\n");
@@ -144,17 +197,20 @@ export class ConfigChecker {
           trimmedLine.includes("=")
         ) {
           const [name, ...valueParts] = trimmedLine.split("=");
-          const value = valueParts.join("=").trim();
-          this.defaultValues.set(name.trim(), {
-            value,
-            line: index + 1,
-          });
+          if (name) {
+            const value = valueParts.join("=").trim();
+            this.defaultValues.set(name.trim(), {
+              value,
+              line: index + 1,
+            });
+          }
         }
       });
     } catch (error) {
+      const err = error as Error;
       this.errors.push({
         file: "defaults.txt",
-        message: "Cannot read defaults.txt: " + error.message,
+        message: "Cannot read defaults.txt: " + err.message,
         severity: "error",
       });
     }
@@ -162,27 +218,32 @@ export class ConfigChecker {
 
   /**
    * Validate JSON file (data.json)
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  async validateJsonFile(content, fileName) {
-    let jsonData;
+  private async validateJsonFile(
+    content: string,
+    fileName: string,
+  ): Promise<void> {
+    let jsonData: unknown;
     try {
       jsonData = JSON.parse(content);
     } catch (error) {
-      const lineMatch = error.message.match(/position (\d+)/);
-      let position = lineMatch ? parseInt(lineMatch[1]) : 0;
+      const err = error as Error;
+      const lineMatch = err.message.match(/position (\d+)/);
+      const position = lineMatch && lineMatch[1] ? parseInt(lineMatch[1], 10) : 0;
 
       // Calculate line and column from position
       const lines = content.substring(0, position).split("\n");
       const line = lines.length;
-      const column = lines[lines.length - 1].length + 1;
+      const lastLine = lines[lines.length - 1];
+      const column = (lastLine?.length ?? 0) + 1;
 
       this.errors.push({
         file: fileName,
         line: line,
         column: column,
-        message: "Invalid JSON syntax: " + error.message,
+        message: "Invalid JSON syntax: " + err.message,
         severity: "error",
       });
       return;
@@ -199,10 +260,13 @@ export class ConfigChecker {
 
   /**
    * Validate Tienda Nube specific file format
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  async validateTiendaNubeFile(content, fileName) {
+  private async validateTiendaNubeFile(
+    content: string,
+    fileName: string,
+  ): Promise<void> {
     // Critical: Validate tab indentation
     this.validateTabIndentation(content, fileName);
 
@@ -231,10 +295,10 @@ export class ConfigChecker {
 
   /**
    * CRITICAL: Validate tab indentation (Tienda Nube requirement)
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateTabIndentation(content, fileName) {
+  private validateTabIndentation(content: string, fileName: string): void {
     const lines = content.split("\n");
 
     lines.forEach((line, index) => {
@@ -263,18 +327,18 @@ export class ConfigChecker {
 
   /**
    * Extract name fields from Tienda Nube files and validate uniqueness
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  extractAndValidateNames(content, fileName) {
+  private extractAndValidateNames(content: string, fileName: string): void {
     const lines = content.split("\n");
-    const namesInFile = new Set();
+    const namesInFile = new Set<string>();
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
       // Match lines with 'name = value' pattern
       const nameMatch = trimmedLine.match(/^name\s*=\s*(.+)$/);
-      if (nameMatch) {
+      if (nameMatch && nameMatch[1]) {
         const nameValue = nameMatch[1].trim();
 
         // Check for duplicates within the same file
@@ -291,7 +355,7 @@ export class ConfigChecker {
 
         // Track across all files
         if (this.allNames.has(nameValue)) {
-          const existing = this.allNames.get(nameValue);
+          const existing = this.allNames.get(nameValue)!;
           this.errors.push({
             file: fileName,
             line: index + 1,
@@ -311,7 +375,7 @@ export class ConfigChecker {
   /**
    * Validate correspondence between name fields and defaults.txt
    */
-  validateNameCorrespondence() {
+  private validateNameCorrespondence(): void {
     // Check if every name has a corresponding default value
     for (const [nameValue, location] of this.allNames.entries()) {
       if (!this.defaultValues.has(nameValue)) {
@@ -338,10 +402,10 @@ export class ConfigChecker {
 
   /**
    * Validate data.json structure
-   * @param {Object} data - Parsed JSON data
-   * @param {string} fileName - File name
+   * @param data - Parsed JSON data
+   * @param fileName - File name
    */
-  validateDataJson(data, fileName) {
+  private validateDataJson(data: unknown, fileName: string): void {
     if (typeof data !== "object" || data === null || Array.isArray(data)) {
       this.errors.push({
         file: fileName,
@@ -352,7 +416,8 @@ export class ConfigChecker {
     }
 
     // Check for required preview section
-    if (!data.preview) {
+    const dataObj = data as Record<string, unknown>;
+    if (!dataObj.preview) {
       this.warnings.push({
         file: fileName,
         message: "Missing 'preview' section for real-time color updates",
@@ -363,14 +428,14 @@ export class ConfigChecker {
 
   /**
    * Validate settings.txt structure
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateSettingsStructure(content, fileName) {
+  private validateSettingsStructure(content: string, fileName: string): void {
     const lines = content.split("\n");
     let hasMainSection = false;
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
       const trimmedLine = line.trim();
 
       // Check for main sections (no indentation)
@@ -391,10 +456,10 @@ export class ConfigChecker {
 
   /**
    * Validate sections.txt structure
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateSectionsStructure(content, fileName) {
+  private validateSectionsStructure(content: string, fileName: string): void {
     const lines = content.split("\n");
     let sectionCount = 0;
 
@@ -417,18 +482,21 @@ export class ConfigChecker {
 
   /**
    * Validate translations.txt structure
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateTranslationsStructure(content, fileName) {
+  private validateTranslationsStructure(
+    content: string,
+    fileName: string,
+  ): void {
     const lines = content.split("\n");
-    const languages = new Set();
+    const languages = new Set<string>();
 
     lines.forEach((line) => {
       const trimmedLine = line.trim();
       // Match language lines: es "text", pt "text", etc.
       const langMatch = trimmedLine.match(/^(es|pt|en|es_mx)\s+".*"$/);
-      if (langMatch) {
+      if (langMatch && langMatch[1]) {
         languages.add(langMatch[1]);
       }
     });
@@ -447,20 +515,23 @@ export class ConfigChecker {
 
   /**
    * Validate variants.txt structure
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateVariantsStructure(content, fileName) {
+  private validateVariantsStructure(content: string, fileName: string): void {
     // Similar structure validation for variants
     this.validateGenericTiendaNubeFile(content, fileName);
   }
 
   /**
    * Generic validation for Tienda Nube files
-   * @param {string} content - File content
-   * @param {string} fileName - File name
+   * @param content - File content
+   * @param fileName - File name
    */
-  validateGenericTiendaNubeFile(content, fileName) {
+  private validateGenericTiendaNubeFile(
+    content: string,
+    fileName: string,
+  ): void {
     const lines = content.split("\n");
 
     // Check for reasonable file size
@@ -476,7 +547,8 @@ export class ConfigChecker {
 
     // Check for excessive nesting (more than 5 tab levels)
     lines.forEach((line, index) => {
-      const tabCount = line.match(/^\t*/)[0].length;
+      const tabMatch = line.match(/^\t*/);
+      const tabCount = tabMatch ? tabMatch[0].length : 0;
       if (tabCount > 5) {
         this.warnings.push({
           file: fileName,
@@ -490,10 +562,10 @@ export class ConfigChecker {
 
   /**
    * Check best practices for JSON files
-   * @param {*} data - Parsed JSON data
-   * @param {string} fileName - File name
+   * @param data - Parsed JSON data
+   * @param fileName - File name
    */
-  checkJsonBestPractices(data, fileName) {
+  private checkJsonBestPractices(data: unknown, fileName: string): void {
     const jsonString = JSON.stringify(data);
     if (jsonString.length > 100000) {
       this.warnings.push({
@@ -516,16 +588,19 @@ export class ConfigChecker {
 
   /**
    * Calculate maximum nesting depth of an object
-   * @param {*} obj - Object to analyze
-   * @returns {number} - Maximum depth
+   * @param obj - Object to analyze
+   * @param currentDepth - Current depth level
+   * @returns Maximum depth
    */
-  getMaxDepth(obj, currentDepth = 0) {
+  private getMaxDepth(obj: unknown, currentDepth: number = 0): number {
     if (typeof obj !== "object" || obj === null) {
       return currentDepth;
     }
 
     let maxChildDepth = currentDepth;
-    const values = Array.isArray(obj) ? obj : Object.values(obj);
+    const values = Array.isArray(obj)
+      ? obj
+      : Object.values(obj as Record<string, unknown>);
 
     for (const value of values) {
       const depth = this.getMaxDepth(value, currentDepth + 1);
@@ -537,9 +612,9 @@ export class ConfigChecker {
 
   /**
    * Get formatted results
-   * @returns {Object} - Results with errors, warnings and success status
+   * @returns Results with errors, warnings and success status
    */
-  getResults() {
+  public getResults(): ValidationResults {
     return {
       success: this.errors.length === 0,
       errors: this.errors,
@@ -553,8 +628,9 @@ export class ConfigChecker {
 
   /**
    * Print results to console with colors
+   * @param results - Validation results to print
    */
-  printResults(results) {
+  public printResults(results: ValidationResults): void {
     console.log("\n" + "=".repeat(60));
     console.log("Configuration Check Results");
     console.log("=".repeat(60) + "\n");
@@ -588,17 +664,17 @@ export class ConfigChecker {
     // Print summary
     console.log("=".repeat(60));
     console.log(
-      `Summary: ${results.summary.totalErrors} errors, ${results.summary.totalWarnings} warnings`
+      `Summary: ${results.summary.totalErrors} errors, ${results.summary.totalWarnings} warnings`,
     );
     console.log("=".repeat(60) + "\n");
 
     if (results.errors.length > 0) {
       this.logger.error(
-        "Configuration check failed. Please fix the errors above."
+        "Configuration check failed. Please fix the errors above.",
       );
     } else {
       this.logger.success(
-        "No errors found, but there are some warnings to review."
+        "No errors found, but there are some warnings to review.",
       );
     }
   }
@@ -606,10 +682,12 @@ export class ConfigChecker {
 
 /**
  * Standalone function to run config check
- * @param {string} themePath - Path to theme directory
- * @returns {Promise<boolean>} - True if check passed, false otherwise
+ * @param themePath - Path to theme directory
+ * @returns True if check passed, false otherwise
  */
-export async function runConfigCheck(themePath = "./theme") {
+export async function runConfigCheck(
+  themePath: string = "./theme",
+): Promise<boolean> {
   const checker = new ConfigChecker();
   const results = await checker.check(themePath);
   checker.printResults(results);

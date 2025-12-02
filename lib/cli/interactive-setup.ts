@@ -1,39 +1,66 @@
+// interactive-setup.ts - Interactive setup for Tienda Nube CLI with strong typing
+
 import inquirer from "inquirer";
-import fs from "fs/promises";
+import { promises as fs } from "fs";
 import { existsSync } from "fs";
 import path from "path";
 import chalk from "chalk";
 import { Client } from "basic-ftp";
 
 /**
+ * FTP configuration interface for validation
+ */
+interface FtpConnectionConfig {
+  host: string;
+  user: string;
+  password: string;
+  port: number;
+  secure: boolean;
+  timeout: number;
+}
+
+/**
+ * Interactive setup answers interface
+ */
+interface SetupAnswers {
+  FTP_HOST: string;
+  FTP_USER: string;
+  FTP_PASSWORD: string;
+  FTP_PORT: string;
+  FTP_BASE_PATH: string;
+  FTP_TIMEOUT: string;
+  DEBUG: boolean;
+}
+
+/**
  * Interactive setup for Tienda Nube CLI
  * Prompts user for FTP credentials and creates .env file
  */
-export async function runInteractiveSetup() {
+export async function runInteractiveSetup(): Promise<void> {
   console.log(chalk.cyan("\n" + "=".repeat(60)));
   console.log(
-    chalk.cyan.bold("  Tienda Nube / Nuvemshop CLI - Interactive Setup")
+    chalk.cyan.bold("  Tienda Nube / Nuvemshop CLI - Interactive Setup"),
   );
   console.log(chalk.cyan("=".repeat(60) + "\n"));
 
   console.log(
-    chalk.gray("This wizard will help you configure your FTP connection.")
+    chalk.gray("This wizard will help you configure your FTP connection."),
   );
   console.log(
     chalk.gray(
-      "You can find these credentials in your Tienda Nube / Nuvemshop admin panel.\n"
-    )
+      "You can find these credentials in your Tienda Nube / Nuvemshop admin panel.\n",
+    ),
   );
 
   // Check if .env already exists
   const envPath = path.join(process.cwd(), ".env");
   if (existsSync(envPath)) {
-    const { overwrite } = await inquirer.prompt([
+    const { overwrite } = await inquirer.prompt<{ overwrite: boolean }>([
       {
         type: "confirm",
         name: "overwrite",
         message: chalk.yellow(
-          ".env file already exists. Do you want to overwrite it?"
+          ".env file already exists. Do you want to overwrite it?",
         ),
         default: false,
       },
@@ -42,21 +69,21 @@ export async function runInteractiveSetup() {
     if (!overwrite) {
       console.log(
         chalk.yellow(
-          "\n⚠️  Setup cancelled. Existing .env file was not modified."
-        )
+          "\n⚠️  Setup cancelled. Existing .env file was not modified.",
+        ),
       );
       return;
     }
   }
 
   // Prompt for FTP credentials
-  const answers = await inquirer.prompt([
+  const answers = await inquirer.prompt<SetupAnswers>([
     {
       type: "input",
       name: "FTP_HOST",
       message: "FTP Host:",
       default: "ftp.tiendanube.com",
-      validate: (input) => {
+      validate: (input: string) => {
         if (!input.trim()) return "FTP host is required";
         return true;
       },
@@ -65,7 +92,7 @@ export async function runInteractiveSetup() {
       type: "input",
       name: "FTP_USER",
       message: "FTP Username:",
-      validate: (input) => {
+      validate: (input: string) => {
         if (!input.trim()) return "FTP username is required";
         return true;
       },
@@ -75,7 +102,7 @@ export async function runInteractiveSetup() {
       name: "FTP_PASSWORD",
       message: "FTP Password:",
       mask: "*",
-      validate: (input) => {
+      validate: (input: string) => {
         if (!input.trim()) return "FTP password is required";
         return true;
       },
@@ -85,8 +112,8 @@ export async function runInteractiveSetup() {
       name: "FTP_PORT",
       message: "FTP Port:",
       default: "21",
-      validate: (input) => {
-        const port = parseInt(input);
+      validate: (input: string) => {
+        const port = parseInt(input, 10);
         if (isNaN(port) || port < 1 || port > 65535) {
           return "Please enter a valid port number (1-65535)";
         }
@@ -98,7 +125,7 @@ export async function runInteractiveSetup() {
       name: "FTP_BASE_PATH",
       message: "FTP Base Path:",
       default: "/",
-      validate: (input) => {
+      validate: (input: string) => {
         if (!input.trim()) return "FTP base path is required";
         if (!input.startsWith("/")) return "Base path must start with /";
         return true;
@@ -109,8 +136,8 @@ export async function runInteractiveSetup() {
       name: "FTP_TIMEOUT",
       message: "FTP Connection Timeout (ms):",
       default: "30000",
-      validate: (input) => {
-        const timeout = parseInt(input);
+      validate: (input: string) => {
+        const timeout = parseInt(input, 10);
         if (isNaN(timeout) || timeout < 1000) {
           return "Please enter a valid timeout (minimum 1000ms)";
         }
@@ -132,18 +159,20 @@ export async function runInteractiveSetup() {
     host: answers.FTP_HOST,
     user: answers.FTP_USER,
     password: answers.FTP_PASSWORD,
-    port: parseInt(answers.FTP_PORT),
+    port: parseInt(answers.FTP_PORT, 10),
     secure: true,
-    timeout: parseInt(answers.FTP_TIMEOUT),
+    timeout: parseInt(answers.FTP_TIMEOUT, 10),
   });
 
   if (!connectionValid) {
-    const { continueAnyway } = await inquirer.prompt([
+    const { continueAnyway } = await inquirer.prompt<{
+      continueAnyway: boolean;
+    }>([
       {
         type: "confirm",
         name: "continueAnyway",
         message: chalk.yellow(
-          "FTP connection failed. Do you want to save the configuration anyway?"
+          "FTP connection failed. Do you want to save the configuration anyway?",
         ),
         default: false,
       },
@@ -152,8 +181,8 @@ export async function runInteractiveSetup() {
     if (!continueAnyway) {
       console.log(
         chalk.yellow(
-          "\n⚠️  Setup cancelled. Please check your FTP credentials and try again."
-        )
+          "\n⚠️  Setup cancelled. Please check your FTP credentials and try again.",
+        ),
       );
       return;
     }
@@ -179,7 +208,8 @@ DEBUG=${answers.DEBUG}
     await fs.writeFile(envPath, envContent, "utf-8");
     console.log(chalk.green("\n✅ .env file created successfully!"));
   } catch (error) {
-    console.error(chalk.red("\n❌ Failed to create .env file:", error.message));
+    const err = error as Error;
+    console.error(chalk.red("\n❌ Failed to create .env file:", err.message));
     throw error;
   }
 
@@ -190,8 +220,9 @@ DEBUG=${answers.DEBUG}
       await fs.mkdir(themePath, { recursive: true });
       console.log(chalk.green("✅ theme/ folder created"));
     } catch (error) {
+      const err = error as Error;
       console.log(
-        chalk.yellow("⚠️  Could not create theme/ folder:", error.message)
+        chalk.yellow("⚠️  Could not create theme/ folder:", err.message),
       );
     }
   }
@@ -214,10 +245,12 @@ DEBUG=${answers.DEBUG}
 
 /**
  * Validate FTP connection with provided credentials
- * @param {Object} config - FTP configuration
- * @returns {Promise<boolean>} - True if connection successful
+ * @param config - FTP configuration
+ * @returns True if connection successful
  */
-async function validateFtpConnection(config) {
+async function validateFtpConnection(
+  config: FtpConnectionConfig,
+): Promise<boolean> {
   const client = new Client();
   client.ftp.verbose = false; // Suppress output during validation
 
@@ -228,7 +261,6 @@ async function validateFtpConnection(config) {
       password: config.password,
       port: config.port,
       secure: config.secure,
-      timeout: config.timeout,
     });
 
     // Try to list root directory to ensure connection works
@@ -237,7 +269,8 @@ async function validateFtpConnection(config) {
     client.close();
     return true;
   } catch (error) {
-    console.log(chalk.red("\n❌ FTP connection failed:", error.message));
+    const err = error as Error;
+    console.log(chalk.red("\n❌ FTP connection failed:", err.message));
     client.close();
     return false;
   }

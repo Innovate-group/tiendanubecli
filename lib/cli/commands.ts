@@ -1,3 +1,5 @@
+// commands.ts - CLI command implementations with strong typing
+
 import fs from "fs";
 import { config, validateConfig } from "../core/config.js";
 import { FtpService } from "../ftp/service.js";
@@ -8,9 +10,10 @@ import { Logger } from "../utils/logger.js";
 const logger = new Logger("CLI");
 
 /**
- * Ensure theme folder exists
+ * Ensure theme folder exists, creating it if necessary
+ * @returns Theme folder path
  */
-function ensureThemeFolder() {
+function ensureThemeFolder(): string {
   if (!fs.existsSync(config.local.themeFolderPath)) {
     logger.info("Creating theme folder...");
     fs.mkdirSync(config.local.themeFolderPath, { recursive: true });
@@ -20,10 +23,15 @@ function ensureThemeFolder() {
 }
 
 /**
- * Setup graceful shutdown handlers
+ * Setup graceful shutdown handlers for SIGINT and SIGTERM
+ * @param ftpService - FTP service to shutdown
+ * @param watcher - File watcher to stop (optional)
  */
-function setupShutdownHandlers(ftpService, watcher) {
-  const shutdown = async () => {
+function setupShutdownHandlers(
+  ftpService: FtpService,
+  watcher?: FileWatcher,
+): void {
+  const shutdown = async (): Promise<void> => {
     logger.info("\n\n🛑 Closing application...");
 
     if (watcher) {
@@ -42,8 +50,10 @@ function setupShutdownHandlers(ftpService, watcher) {
 
 /**
  * Run watch mode - monitor and sync files
+ * Starts file system watcher and automatically syncs changes to FTP
+ * @throws {Error} If configuration is invalid or connection fails
  */
-export async function runWatch() {
+export async function runWatch(): Promise<void> {
   // Validate configuration
   validateConfig();
   ensureThemeFolder();
@@ -59,7 +69,7 @@ export async function runWatch() {
 
   try {
     // Test connection
-    await ftpService.connectionManager.getConnection();
+    await ftpService.testConnection();
 
     // Start watching
     await watcher.start();
@@ -67,7 +77,8 @@ export async function runWatch() {
     // Setup graceful shutdown
     setupShutdownHandlers(ftpService, watcher);
   } catch (err) {
-    logger.error("Could not establish FTP connection:", err.message);
+    const error = err as Error;
+    logger.error("Could not establish FTP connection:", error.message);
     if (config.debug) {
       console.error(err);
     }
@@ -76,9 +87,11 @@ export async function runWatch() {
 }
 
 /**
- * Run download mode - download entire theme
+ * Run download mode - download entire theme from FTP to local
+ * Downloads all files recursively from the FTP server
+ * @throws {Error} If download fails
  */
-export async function runDownload() {
+export async function runDownload(): Promise<void> {
   // Validate configuration
   validateConfig();
   ensureThemeFolder();
@@ -95,7 +108,8 @@ export async function runDownload() {
 
     logger.success("\n✅ Operation completed");
   } catch (err) {
-    logger.error("Error during download:", err.message);
+    const error = err as Error;
+    logger.error("Error during download:", error.message);
     if (config.debug) {
       console.error(err);
     }
@@ -107,9 +121,11 @@ export async function runDownload() {
 }
 
 /**
- * Run push mode - upload entire theme to FTP
+ * Run push mode - upload entire local theme to FTP
+ * Uploads all files recursively to the FTP server
+ * @throws {Error} If upload fails
  */
-export async function runPush() {
+export async function runPush(): Promise<void> {
   // Validate configuration
   validateConfig();
   ensureThemeFolder();
@@ -126,7 +142,8 @@ export async function runPush() {
 
     logger.success("\n✅ Operation completed");
   } catch (err) {
-    logger.error("Error during upload:", err.message);
+    const error = err as Error;
+    logger.error("Error during upload:", error.message);
     if (config.debug) {
       console.error(err);
     }
@@ -138,9 +155,12 @@ export async function runPush() {
 }
 
 /**
- * Run download-file mode - download specific file
+ * Run download-file mode - download specific file from FTP
+ * Downloads a single file from the FTP server to local theme folder
+ * @param targetFile - Remote file path to download (relative or absolute)
+ * @throws {Error} If file not specified or download fails
  */
-export async function runDownloadFile(targetFile) {
+export async function runDownloadFile(targetFile: string): Promise<void> {
   // Validate configuration
   validateConfig();
   ensureThemeFolder();
@@ -171,7 +191,8 @@ export async function runDownloadFile(targetFile) {
 
     logger.success("\n✅ Operation completed");
   } catch (err) {
-    logger.error("Error during download:", err.message);
+    const error = err as Error;
+    logger.error("Error during download:", error.message);
     if (config.debug) {
       console.error(err);
     }
